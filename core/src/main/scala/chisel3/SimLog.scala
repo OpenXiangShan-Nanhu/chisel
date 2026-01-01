@@ -82,7 +82,7 @@ sealed trait SimLog extends SimLogIntf {
     _filename.foreach(Printable.checkScope(_, "SimLog filename "))
 
     layer.block(layers.Verification, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
-      Builder.pushCommand(Printf(printfId, sourceInfo, _filename, clock.ref, pable))
+      Builder.pushCommand(Printf(printfId, sourceInfo, _filename, clock.ref, true.B.ref, pable))
     }
     printfId
   }

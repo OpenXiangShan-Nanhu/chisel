@@ -535,6 +535,7 @@ private[chisel3] object ir {
     sourceInfo: SourceInfo,
     filename:   Option[Printable],
     clock:      Arg,
+    enable:     Arg,
     pable:      Printable
   ) extends Definition
 

@@ -28,12 +28,13 @@ object VerifStmtMacrosCompat {
   )(
     implicit sourceInfo: SourceInfo
   ): Printable = {
-    val (filename, line) = lineInfo
-    val lineMsg = s"$filename:$line".replaceAll("%", "%%")
+    val srcInfoStr = sourceInfo.makeMessage(i => i)
+    val currentDir = new java.io.File(".").getCanonicalPath
+    val srcMsgStr = srcInfoStr.replace(currentDir, ".")
     message match {
       case Some(msg) =>
-        p"$kind failed: $msg\n"
-      case None => p"$kind failed at $lineMsg\n"
+        cf"$srcMsgStr\n$kind failed at %T in %m: $msg\n"
+      case None => cf"$srcMsgStr\n$kind failed at %T in %m!\n"
     }
   }
 
@@ -90,7 +91,7 @@ object VerifStmtMacrosCompat {
       implicit sourceInfo: SourceInfo
     ): chisel3.assert.Assert = {
       message.foreach(Printable.checkScope(_))
-      val pable = formatFailureMessage("Assertion", line, cond, message)
+      val pable = formatFailureMessage("Assertion", line, cond, message)(sourceInfo)
       emitIfElseFatalIntrinsic(Module.clock, cond, !Module.reset.asBool, pable)
     }
 
@@ -104,8 +105,9 @@ object VerifStmtMacrosCompat {
     ): chisel3.assert.Assert = {
       block(layers.Verification.Assert, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
         val id = Builder.forcedUserModule // It should be safe since we push commands anyway.
-        val args = Printable.unpackFirrtlArgs(format)
-        IfElseFatalIntrinsic(id, format, "chisel3_builtin", clock, predicate, enable, args: _*)(sourceInfo)
+        val printEn = enable && !predicate
+        Builder.pushCommand(Printf(new chisel3.printf.Printf(format), sourceInfo, None, clock.ref, printEn.ref, format))
+        IfElseFatalIntrinsic(id, "", "chisel3_builtin", clock, predicate, enable)(sourceInfo)
       }
       new chisel3.assert.Assert()
     }
