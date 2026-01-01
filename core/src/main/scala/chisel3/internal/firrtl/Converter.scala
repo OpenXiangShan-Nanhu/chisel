@@ -208,7 +208,7 @@ private[chisel3] object Converter {
       fir.DefObject(convert(info), e.name, className)
     case e @ Stop(_, info, clock, ret) =>
       fir.Stop(convert(info), ret, convert(clock, ctx, info), firrtl.Utils.one, e.name)
-    case e @ Printf(_, info, filename, clock, pable) =>
+    case e @ Printf(_, info, filename, clock, enable, pable) =>
       val mkPrintf = filename match {
         case None => fir.Print.apply _
         case Some(f) =>
@@ -221,7 +221,7 @@ private[chisel3] object Converter {
         fir.StringLit(fmt),
         args.map(a => convert(a, ctx, info)),
         convert(clock, ctx, info),
-        firrtl.Utils.one,
+        convert(enable, ctx, info),
         e.name
       )
     case e @ Flush(info, filename, clock) =>

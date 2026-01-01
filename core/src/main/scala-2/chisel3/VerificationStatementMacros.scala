@@ -32,8 +32,8 @@ object VerifStmtMacrosCompat {
     val lineMsg = s"$filename:$line".replaceAll("%", "%%")
     message match {
       case Some(msg) =>
-        p"$kind failed: $msg\n"
-      case None => p"$kind failed at $lineMsg\n"
+        cf"$kind failed at %T in %m: $msg\n"
+      case None => cf"$kind failed at %T in %m at $lineMsg\n"
     }
   }
 
@@ -104,8 +104,9 @@ object VerifStmtMacrosCompat {
     ): chisel3.assert.Assert = {
       block(layers.Verification.Assert, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
         val id = Builder.forcedUserModule // It should be safe since we push commands anyway.
-        val args = Printable.unpackFirrtlArgs(format)
-        IfElseFatalIntrinsic(id, format, "chisel3_builtin", clock, predicate, enable, args: _*)(sourceInfo)
+        val printEn = enable && !predicate
+        Builder.pushCommand(Printf(new chisel3.printf.Printf(format), sourceInfo, None, clock.ref, printEn.ref, format))
+        IfElseFatalIntrinsic(id, "", "chisel3_builtin", clock, predicate, enable)(sourceInfo)
       }
       new chisel3.assert.Assert()
     }

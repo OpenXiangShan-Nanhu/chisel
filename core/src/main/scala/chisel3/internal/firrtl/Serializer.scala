@@ -280,10 +280,11 @@ private[chisel3] object Serializer {
       val lbl = e.name
       if (lbl.nonEmpty) { b ++= " : "; b ++= legalize(lbl) }
       serialize(e.sourceInfo)
-    case e @ Printf(_, info, filename, clock, pable) =>
+    case e @ Printf(_, info, filename, clock, enable, pable) =>
       val (fmt, args) = unpack(pable, ctx, info)
       if (filename.isEmpty) b ++= "printf("; else b ++= "fprintf(";
-      serialize(clock, ctx, info); b ++= ", UInt<1>(0h1), ";
+      serialize(clock, ctx, info); b ++= ", ";
+      serialize(enable, ctx, info); b ++= ", ";
       filename.foreach { fable =>
         val (ffmt, fargs) = unpack(fable, ctx, info)
         b ++= fir.StringLit(ffmt).escape; b ++= ", "
