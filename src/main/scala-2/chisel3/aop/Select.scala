@@ -472,8 +472,8 @@ object Select {
       module,
       (cmd: Command, preds: Seq[Predicate]) => {
         cmd match {
-          case chisel3.internal.firrtl.ir.Printf(id, _, _, clock, pable) =>
-            printfs += Printf(id, preds, pable, getId(clock).asInstanceOf[Clock])
+          case chisel3.internal.firrtl.ir.Printf(id, _, _, clock, enable, pable) =>
+            printfs += Printf(id, preds :+ When(getId(enable).asInstanceOf[Bool]), pable, getId(clock).asInstanceOf[Clock])
           case other =>
         }
       }
