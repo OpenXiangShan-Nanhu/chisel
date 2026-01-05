@@ -386,6 +386,7 @@ private[chisel3] object ir {
   class Block(val sourceInfo: SourceInfo) {
     // While building block, commands go into _commandsBuilder.
     private var _commandsBuilder = ArraySeq.newBuilder[Command]
+    private var _preppendedCommandsBuilder = ArraySeq.newBuilder[Command]
 
     // Once closed, store the resulting Seq in _commands.
     private var _commands: Seq[Command] = null
@@ -401,6 +402,10 @@ private[chisel3] object ir {
       _commandsBuilder += c
     }
 
+    private[chisel3] def addPrependedCommands(c: Command): Unit = {
+      _preppendedCommandsBuilder += c
+    }
+
     def appendToPlaceholder[A](placeholder: Placeholder)(thunk: => A): A = {
       val oldPoint = _commandsBuilder
       _commandsBuilder = placeholder.getBuffer
@@ -411,7 +416,7 @@ private[chisel3] object ir {
 
     def close() = {
       if (_commands == null) {
-        _commands = _commandsBuilder.result()
+        _commands = _preppendedCommandsBuilder.result() ++ _commandsBuilder.result()
         _commandsBuilder = null
       }
     }
