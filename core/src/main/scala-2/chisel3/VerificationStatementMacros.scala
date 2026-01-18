@@ -28,12 +28,13 @@ object VerifStmtMacrosCompat {
   )(
     implicit sourceInfo: SourceInfo
   ): Printable = {
-    val (filename, line) = lineInfo
-    val lineMsg = s"$filename:$line".replaceAll("%", "%%")
+    val srcInfoStr = sourceInfo.makeMessage(i => i)
+    val currentDir = new java.io.File(".").getCanonicalPath
+    val srcMsgStr = srcInfoStr.replace(currentDir, ".")
     message match {
       case Some(msg) =>
-        cf"$kind failed at %T in %m: $msg\n"
-      case None => cf"$kind failed at %T in %m at $lineMsg\n"
+        cf"$srcMsgStr\n$kind failed at %T in %m: $msg\n"
+      case None => cf"$srcMsgStr\n$kind failed at %T in %m!\n"
     }
   }
 
@@ -90,7 +91,7 @@ object VerifStmtMacrosCompat {
       implicit sourceInfo: SourceInfo
     ): chisel3.assert.Assert = {
       message.foreach(Printable.checkScope(_))
-      val pable = formatFailureMessage("Assertion", line, cond, message)
+      val pable = formatFailureMessage("Assertion", line, cond, message)(sourceInfo)
       emitIfElseFatalIntrinsic(Module.clock, cond, !Module.reset.asBool, pable)
     }
 
