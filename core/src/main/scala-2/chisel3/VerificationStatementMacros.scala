@@ -103,11 +103,16 @@ object VerifStmtMacrosCompat {
     )(
       implicit sourceInfo: SourceInfo
     ): chisel3.assert.Assert = {
-      block(layers.Verification.Assert, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
+      def thunk():Unit = {
         val id = Builder.forcedUserModule // It should be safe since we push commands anyway.
         val printEn = enable && !predicate
         Builder.pushCommand(Printf(new chisel3.printf.Printf(format), sourceInfo, None, clock.ref, printEn.ref, format))
         IfElseFatalIntrinsic(id, "", "chisel3_builtin", clock, predicate, enable)(sourceInfo)
+      }
+      if(chisel3.VerificationLayers.assertLayer) {
+        block(layers.Verification.Assert, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true)(thunk())
+      } else {
+        thunk()
       }
       new chisel3.assert.Assert()
     }
@@ -161,12 +166,17 @@ object VerifStmtMacrosCompat {
       implicit sourceInfo: SourceInfo
     ): chisel3.assume.Assume = {
       val id = new chisel3.assume.Assume()
-      block(layers.Verification.Assume, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
+      def thunk():Unit = {
         message.foreach(Printable.checkScope(_))
         when(!Module.reset.asBool) {
           val formattedMsg = formatFailureMessage("Assumption", line, cond, message)
           Builder.pushCommand(Verification(id, Formal.Assume, sourceInfo, Module.clock.ref, cond.ref, formattedMsg))
         }
+      }
+      if(chisel3.VerificationLayers.assumeLayer) {
+        block(layers.Verification.Assume, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true)(thunk())
+      } else {
+        thunk()
       }
       id
     }
@@ -201,10 +211,15 @@ object VerifStmtMacrosCompat {
       implicit sourceInfo: SourceInfo
     ): chisel3.cover.Cover = {
       val id = new chisel3.cover.Cover()
-      block(layers.Verification.Cover, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
+      def thunk():Unit = {
         when(!Module.reset.asBool) {
           Builder.pushCommand(Verification(id, Formal.Cover, sourceInfo, Module.clock.ref, cond.ref, ""))
         }
+      }
+      if(chisel3.VerificationLayers.coverLayer) {
+        block(layers.Verification.Cover, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true)(thunk())
+      } else {
+        thunk()
       }
       id
     }
