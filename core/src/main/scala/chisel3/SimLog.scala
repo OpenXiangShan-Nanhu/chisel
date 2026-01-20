@@ -81,8 +81,13 @@ sealed trait SimLog extends SimLogIntf {
     Printable.checkScope(pable, "printf ")
     _filename.foreach(Printable.checkScope(_, "SimLog filename "))
 
-    layer.block(layers.Verification, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true) {
+    def thunk():Unit = {
       Builder.pushCommand(Printf(printfId, sourceInfo, _filename, clock.ref, true.B.ref, pable))
+    }
+    if(chisel3.VerificationLayers.printfLayer) {
+      layer.block(layers.Verification, skipIfAlreadyInBlock = true, skipIfLayersEnabled = true)(thunk())
+    } else {
+      thunk()
     }
     printfId
   }

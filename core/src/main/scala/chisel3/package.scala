@@ -18,6 +18,34 @@ package object chisel3 {
 
   import scala.language.implicitConversions
 
+  /** Configuration for verification statement layers.
+    *
+    * Controls whether verification statements (assert, assume, cover, printf)
+    * are wrapped in verification layers when generated.
+    *
+    * @example
+    * {{{
+    * // Disable assert layers
+    * chisel3.VerificationLayers.assertLayer = false
+    *
+    * // Re-enable assert layers
+    * chisel3.VerificationLayers.assertLayer = true
+    * }}}
+    */
+  object VerificationLayers {
+    /** Whether assert statements use a verification layer. Default: true */
+    var assertLayer: Boolean = true
+
+    /** Whether printf statements use a verification layer. Default: true */
+    var printfLayer: Boolean = true
+
+    /** Whether assume statements use a verification layer. Default: true */
+    var assumeLayer: Boolean = true
+
+    /** Whether cover statements use a verification layer. Default: true */
+    var coverLayer: Boolean = true
+  }
+
   /**
     * These implicit classes allow one to convert [[scala.Int]] or [[scala.BigInt]] to
     * Chisel.UInt|Chisel.SInt by calling .asUInt|.asSInt on them, respectively.
