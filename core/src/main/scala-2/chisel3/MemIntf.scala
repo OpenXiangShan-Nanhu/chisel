@@ -8,7 +8,7 @@ import chisel3.internal.sourceinfo.{MemTransform, SourceInfoTransform}
 import chisel3.experimental.SourceInfo
 import chisel3.Mem.HasVecDataType
 
-private[chisel3] trait Mem$Intf extends SourceInfoDoc { self: Mem.type =>
+private[chisel3] trait MemIntf extends SourceInfoDoc { self: Mem.type =>
 
   /** Creates a combinational/asynchronous-read, sequential/synchronous-write [[Mem]].
     *

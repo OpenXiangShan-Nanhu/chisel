@@ -13,7 +13,7 @@ import chisel3.internal.firrtl.ir._
 import chisel3.Mem.HasVecDataType
 import chisel3.experimental.{requireIsChiselType, requireIsHardware, SourceInfo, SourceLine}
 
-object Mem extends Mem$Intf {
+object Mem extends MemIntf {
 
   @implicitNotFound("Masked write requires that the data type is a Vec, got ${T}.")
   type HasVecDataType[T] = T <:< Vec[_]
