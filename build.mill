@@ -223,12 +223,25 @@ trait HasScala2MacroAnno extends CrossModuleBase {
 trait HasScalaPlugin extends ChiselCrossModule {
   def pluginModule = plugin.cross(_scalaVersion)
 
+  private val releasePlugin = sys.env.get("CHISEL_RELEASE_PLUGIN_VERSION")
+
+  def localCompilerPlugins: T[Seq[PathRef]] = releasePlugin match {
+    case Some(_) => Task { Seq.empty[PathRef] }
+    case None    => Task { Seq(pluginModule.jar()) }
+  }
+
+  def releasePluginVersion = Task.Input { releasePlugin }
+
+  override def scalacPluginMvnDeps = Task {
+    super.scalacPluginMvnDeps() ++ releasePluginVersion().toSeq.map(version => mvn"org.chipsalliance:::chisel-plugin:$version")
+  }
+
   override def scalacOptions = Task {
-    super.scalacOptions() ++ Seq(s"-Xplugin:${pluginModule.jar().path}")
+    super.scalacOptions() ++ localCompilerPlugins().map(jar => s"-Xplugin:${jar.path}")
   }
 
   override def scalacPluginClasspath = Task {
-    super.scalacPluginClasspath() ++ Seq(pluginModule.jar())
+    super.scalacPluginClasspath() ++ localCompilerPlugins()
   }
 }
 
