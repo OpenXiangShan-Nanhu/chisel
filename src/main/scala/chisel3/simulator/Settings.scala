@@ -23,7 +23,8 @@ object MacroText {
       */
     private[simulator] def toPreprocessorDefine(
       macroName:        String,
-      elaboratedModule: ElaboratedModule[A]
+      elaboratedModule: ElaboratedModule[A],
+      portScope:        String = Workspace.testbenchModuleName
     ): VerilogPreprocessorDefine
 
   }
@@ -47,10 +48,11 @@ object MacroText {
 
     override private[simulator] def toPreprocessorDefine(
       macroName:        String,
-      elaboratedModule: ElaboratedModule[A]
+      elaboratedModule: ElaboratedModule[A],
+      portScope:        String
     ) = {
       val port = lookupSignal(get(elaboratedModule.wrapped), elaboratedModule)
-      VerilogPreprocessorDefine(macroName, s"${Workspace.testbenchModuleName}.$port")
+      VerilogPreprocessorDefine(macroName, s"$portScope.$port")
     }
 
   }
@@ -64,10 +66,11 @@ object MacroText {
 
     override private[simulator] def toPreprocessorDefine(
       macroName:        String,
-      elaboratedModule: ElaboratedModule[A]
+      elaboratedModule: ElaboratedModule[A],
+      portScope:        String
     ) = {
       val port = lookupSignal(get(elaboratedModule.wrapped), elaboratedModule)
-      VerilogPreprocessorDefine(macroName, s"!${Workspace.testbenchModuleName}.$port")
+      VerilogPreprocessorDefine(macroName, s"!$portScope.$port")
     }
 
   }
@@ -182,7 +185,8 @@ final class Settings[A <: RawModule] private[simulator] (
     )
 
   private[simulator] def preprocessorDefines(
-    elaboratedModule: ElaboratedModule[A]
+    elaboratedModule: ElaboratedModule[A],
+    portScope:        String = Workspace.testbenchModuleName
   ): Seq[VerilogPreprocessorDefine] = {
 
     Seq(
@@ -190,7 +194,7 @@ final class Settings[A <: RawModule] private[simulator] (
       (printfCond -> "PRINTF_COND"),
       (stopCond -> "STOP_COND")
     ).flatMap {
-      case (Some(a), macroName) => Some(a.toPreprocessorDefine(macroName, elaboratedModule))
+      case (Some(a), macroName) => Some(a.toPreprocessorDefine(macroName, elaboratedModule, portScope))
       case (None, _)            => None
     } ++ verilogLayers.preprocessorDefines(elaboratedModule) ++
       instanceChoices.preprocessorDefines(elaboratedModule) ++

@@ -102,6 +102,9 @@ trait Simulator[T <: Backend] {
   def commonCompilationSettings:          CommonCompilationSettings
   def backendSpecificCompilationSettings: backend.CompilationSettings
 
+  protected def backendFirtoolOptions(layers: LayerControl.Type): Seq[String] = Seq.empty
+  protected def testbenchPortScope: String = Workspace.testbenchModuleName
+
   /** Post process a simulation log to see if there are any backend-specific failures.
     *
     * @return None if no failures found or Some if they are
@@ -166,7 +169,7 @@ trait Simulator[T <: Backend] {
         .elaborateGeneratedModule(
           () => module,
           args = chiselOptsModifications(chiselOpts).toSeq,
-          firtoolArgs = firtoolOptsModifications(firtoolOpts).toSeq ++ instanceChoiceOpts
+          firtoolArgs = backendFirtoolOptions(settings.verilogLayers) ++ firtoolOptsModifications(firtoolOpts).toSeq ++ instanceChoiceOpts
         )
     _simulate(workspace, elaboratedModule, settings)(body)
   }
@@ -193,7 +196,7 @@ trait Simulator[T <: Backend] {
         () => module,
         includeTestGlobs = includeTestGlobs.toSeq,
         args = chiselOptsModifications(chiselOpts).toSeq,
-        firtoolArgs = firtoolOptsModifications(firtoolOpts).toSeq ++ instanceChoiceOpts
+        firtoolArgs = backendFirtoolOptions(settings.verilogLayers) ++ firtoolOptsModifications(firtoolOpts).toSeq ++ instanceChoiceOpts
       )
       .map { case (testWorkspace, elaboratedTest, elaboratedModule) =>
         val digest = _simulate(testWorkspace, elaboratedModule, settings)(body)
@@ -270,7 +273,7 @@ trait Simulator[T <: Backend] {
     def parseLibraryMap(value: Option[String]): Map[String, String] = {
       value
         .getOrElse("")
-        .split(":")
+        .split(java.io.File.pathSeparator)
         .filter(_.nonEmpty)
         .map { entry =>
           entry.split("=", 2) match {
@@ -293,7 +296,7 @@ trait Simulator[T <: Backend] {
           s"Link library `$name` not found. " +
             "Set the `CHISELSIM_LIBS` environment variable or the " +
             "`chiselsim.libraries` Java property to provide a list of " +
-            "`<name>=<path>` mappings separated by `:`. Available libraries: " +
+            s"`<name>=<path>` mappings separated by `${java.io.File.pathSeparator}`. Available libraries: " +
             s"[${libraryMap.keys.mkString(", ")}]"
         )
       )
@@ -308,7 +311,7 @@ trait Simulator[T <: Backend] {
           commonCompilationSettings.includeDirs.getOrElse(Seq.empty) ++ primarySourcesDirectories
         ),
         verilogPreprocessorDefines =
-          commonCompilationSettings.verilogPreprocessorDefines ++ settings.preprocessorDefines(elaboratedModule),
+          commonCompilationSettings.verilogPreprocessorDefines ++ settings.preprocessorDefines(elaboratedModule, testbenchPortScope),
         fileFilter = commonCompilationSettings.fileFilter
           .orElse(settings.verilogLayers.shouldIncludeFile(elaboratedModule)),
         directoryFilter = commonCompilationSettings.directoryFilter.orElse(
@@ -323,7 +326,10 @@ trait Simulator[T <: Backend] {
       )
     )
 
-    workspace.generateAdditionalSources(timescale = commonCompilationSettingsUpdated.defaultTimescale)
+    // Icarus generates its VPI harness at compile time; it does not use the DPI sources.
+    if (!backend.isInstanceOf[svsim.iverilog.Backend]) {
+      workspace.generateAdditionalSources(timescale = commonCompilationSettingsUpdated.defaultTimescale)
+    }
 
     // Compile the design.  Early exit if the compilation fails for any reason.
     val compilationStartTime = System.nanoTime()

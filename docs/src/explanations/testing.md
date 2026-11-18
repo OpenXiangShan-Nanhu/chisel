@@ -309,7 +309,9 @@ ChiselSim.  These are available in the `chisel3.simulator.scalatest.Cli` object:
   "scale" a test up or down at test-tiem, e.g., to make the test run longer.
   This feature is accessed via the `scaled` method that this trait provides.
 - `Simulator` adds a `-Dsimulator=<simulator-name>` argument.  This allows for
-  test-time selection of either VCS or verilator as the simulation backend.
+  test-time selection of VCS, Verilator, or Icarus Verilog as the simulation backend.
+  For a ScalaTest suite mixing in `ChiselSim` and `Cli.Simulator`, pass
+  `-Dsimulator=iverilog -DemitVcd=1` to ScalaTest to record a VCD with Icarus.
 
 :::warning
 

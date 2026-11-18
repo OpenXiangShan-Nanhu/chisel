@@ -437,8 +437,18 @@ final class Workspace(
 
     }
 
-    for (dir <- Seq(primarySourcesPath, generatedSourcesPath)) {
+    val sourceDirs = backend match {
+      case _: iverilog.Backend => Seq(primarySourcesPath)
+      case _                   => Seq(primarySourcesPath, generatedSourcesPath)
+    }
+    for (dir <- sourceDirs) {
       Files.walkFileTree(Paths.get(dir), new DirectoryVisitor)
+    }
+
+    backend match {
+      case icarus: iverilog.Backend =>
+        return icarus.compile(workingDirectory, moduleInfo, parameters, sourceFiles.toSeq, customSimulationWorkingDirectory, verbose)
+      case _ =>
     }
 
     val traceFileStem = commonSettings.simulationSettings.traceFileStem

@@ -39,6 +39,30 @@ object HasSimulator {
     */
   object simulators {
 
+    /** Use Icarus Verilog and its vvp runtime, including on native Windows. */
+    def iverilog(compilationSettings: svsim.CommonCompilationSettings = svsim.CommonCompilationSettings()): HasSimulator =
+      new HasSimulator {
+        override def getSimulator(implicit testingDirectory: HasTestingDirectory): Simulator[svsim.iverilog.Backend] =
+          new Simulator[svsim.iverilog.Backend] {
+            override val backend = svsim.iverilog.Backend.initializeFromProcessEnvironment()
+            override val tag = "iverilog"
+            override protected def testbenchPortScope = s"${svsim.Workspace.testbenchModuleName}.dut"
+            // Icarus cannot bind extracted verification modules. Specialize the
+            // selected layers during lowering instead of filtering bound files later.
+            override protected def backendFirtoolOptions(layers: LayerControl.Type): Seq[String] = {
+              val (default, exceptions) = layers match {
+                case LayerControl.EnableAll => ("enable", Seq.empty)
+                case LayerControl.Enable(selected @ _*) => ("disable", selected.map(l => s"-enable-layers=${l.fullName}"))
+                case LayerControl.Disable(selected @ _*) => ("enable", selected.map(l => s"-disable-layers=${l.fullName}"))
+              }
+              Seq("--lowering-options=disallowLocalVariables,disallowPackedArrays", s"-default-layer-specialization=$default") ++ exceptions
+            }
+            override val commonCompilationSettings = compilationSettings
+            override val backendSpecificCompilationSettings = svsim.iverilog.Backend.CompilationSettings()
+            override val workspacePath = Files.createDirectories(testingDirectory.getDirectory).toString
+          }
+      }
+
     /** A [[HasSimulator]] implementation for a Verilator simulator. */
     def verilator(
       compilationSettings: svsim.CommonCompilationSettings = svsim.CommonCompilationSettings(),

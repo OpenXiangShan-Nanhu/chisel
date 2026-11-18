@@ -36,6 +36,18 @@
 #include <string.h>
 #include <strings.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <string>
+#include <io.h>
+#endif
+
+#ifdef SVSIM_ENABLE_ICARUS_SUPPORT
+#define DPI_TASK_RETURN_TYPE void
+#define DPI_TASK_RETURN_VALUE
+extern "C" void simulation_initializeTrace(const char *);
+extern "C" void simulation_enableTrace(int *);
+extern "C" void simulation_disableTrace(int *);
+#endif
 
 #ifdef SVSIM_ENABLE_VERILATOR_SUPPORT
 #include "verilated-sources/VsvsimTestbench__Dpi.h"
@@ -55,9 +67,11 @@ extern int port_getter(int id, int *bitWidth, void (**getter)(uint8_t *));
 extern int port_setter(int id, int *bitWidth, void (**setter)(const uint8_t *));
 
 /// SV scope setter for port_getter and port_setter
+#ifndef SVSIM_ENABLE_ICARUS_SUPPORT
 svScope testbenchScope;
 svScope setScopeToTestBench() { return svSetScope(testbenchScope); }
 void initTestBenchScope() { testbenchScope = svGetScope(); }
+#endif
 
 /**
  * The functions in the following block can be implemented either by DPI, or in
@@ -320,6 +334,9 @@ static void sendUintAsBits(uint64_t value) {
 }
 
 static void sendLog() {
+#ifdef SVSIM_ENABLE_ICARUS_SUPPORT
+  vpi_mcd_flush(1); // Flush vvp's stdout, which can use a separate CRT on Windows.
+#endif
   /// `stdout` is a file and needs to be flushed so that the log is present
   fflush(stdout);
 
@@ -360,6 +377,7 @@ static void sendLog() {
   data[readByteCount] = '\0';
   // Send message
   writeMessage(MESSAGE_LOG, "%08lX %s", readByteCount, data);
+  free(data);
 }
 
 // -- Reading Commands
@@ -367,10 +385,22 @@ static void sendLog() {
 // A subsequent call to `readCommand` will invalidate the string returned by the
 // previous call.
 static void readCommand(const char **start, const char **end) {
+#ifdef _WIN32
+  static std::string line;
+  line.clear();
+  int ch;
+  while ((ch = fgetc(state.commandStream)) != EOF) {
+    line.push_back(static_cast<char>(ch));
+    if (ch == '\n') break;
+  }
+  const char *stringBuffer = line.c_str();
+  int byteCount = static_cast<int>(line.size());
+#else
   static char *stringBuffer = NULL;
   static size_t stringBufferLength = 0;
   int byteCount =
       getline(&stringBuffer, &stringBufferLength, state.commandStream);
+#endif
   if (state.executionScript != NULL) {
     if (state.executionScriptLimit == -1 ||
         state.executionScriptCommandCount <= state.executionScriptLimit) {
@@ -628,7 +658,8 @@ static bool processCommand() {
   readCommand(&lineCursor, &lineEnd);
 
   char commandCode = *(lineCursor++);
-  state.outstandingCommand = {/*command=*/commandCode, /*cycles=*/0};
+  state.outstandingCommand.command = commandCode;
+  state.outstandingCommand.cycles = 0;
   switch (commandCode) {
   case COMMAND_DONE: {
     return true;
@@ -785,7 +816,7 @@ static bool processCommand() {
     while (cycles++ < maxCycleCount) {
       if (sentinelPort.getter != NULL) {
         (*sentinelPort.getter)(sentinelPortValue);
-        if (memcmp(sentinelPortValue, sentinelValue, sentinelPort.bitWidth) ==
+        if (memcmp(sentinelPortValue, sentinelValue, (sentinelPort.bitWidth + 7) / 8) ==
             0) {
           break;
         }
@@ -877,7 +908,8 @@ DPI_TASK_RETURN_TYPE simulation_final() {
   // Specifically, VCS hits this code path as it will (correctly) stop the
   // simulation when it sees a `$finish` whereas Verilator will _not_ stop the
   // simulation.
-  auto &[command, cycles] = state.outstandingCommand;
+  char command = state.outstandingCommand.command;
+  int &cycles = state.outstandingCommand.cycles;
   switch (command) {
   // If the outstanding command is "done", then just exit.
   case COMMAND_DONE:
@@ -921,7 +953,7 @@ DPI_TASK_RETURN_TYPE simulation_final() {
   return DPI_TASK_RETURN_VALUE;
 }
 
-int main(int argc, const char *argv[]) {
+static void initializeDriver() {
 
   // Remap `stdin` and `stdout` so we can use the original `stdin` and `stdout`
   // for commands and messages.
@@ -937,20 +969,37 @@ int main(int argc, const char *argv[]) {
   if (stdoutCopy == -1) {
     failWithError("Failed to duplicate stdout.");
   }
-  state.messageStream = fdopen(stdoutCopy, "w");
+#ifdef _WIN32
+  // LOG is byte-counted; do not expand LF to CRLF on the protocol pipe.
+  _setmode(stdoutCopy, _O_BINARY);
+#endif
+  state.messageStream = fdopen(stdoutCopy, "wb");
   if (state.messageStream == NULL) {
     failWithError("Failed to open message stream for reading.");
   }
-  if (freopen("/dev/null", "r", stdin) == NULL) {
+#ifdef _WIN32
+  const char *nullDevice = "NUL";
+#else
+  const char *nullDevice = "/dev/null";
+#endif
+  if (freopen(nullDevice, "r", stdin) == NULL) {
     failWithError("Failed to redirect stdin to /dev/null.");
   }
   state.logFilePath = getenv("SVSIM_SIMULATION_LOG");
   if (state.logFilePath == NULL) {
     state.logFilePath = "simulation-log.txt";
   }
-  if (freopen(state.logFilePath, "w", stdout) == NULL) {
+#ifdef SVSIM_ENABLE_ICARUS_SUPPORT
+  // vvp -q -l owns the DUT log (including time-zero output). Never reopen
+  // or truncate it from the plugin's CRT. Keep other diagnostics off the pipe.
+  if (dup2(STDERR_FILENO, STDOUT_FILENO) < 0) {
+    failWithError("Failed to redirect simulator diagnostics to stderr.");
+  }
+#else
+  if (freopen(state.logFilePath, "wb", stdout) == NULL) {
     failWithError("Failed to redirect stdout to %s.", state.logFilePath);
   }
+#endif
 
   state.simulationTraceFilepath = getenv("SVSIM_SIMULATION_TRACE");
   if (state.simulationTraceFilepath == NULL) {
@@ -975,6 +1024,11 @@ int main(int argc, const char *argv[]) {
     }
   }
 
+}
+
+#ifndef SVSIM_ENABLE_ICARUS_SUPPORT
+int main(int argc, const char *argv[]) {
+  initializeDriver();
   simulation_main(argc, argv); // Calls `simulation_body` via DPI
                                /**
                                 VCS's implementation of `simulation_main` never returns, so for consistency
@@ -983,6 +1037,7 @@ int main(int argc, const char *argv[]) {
                                 */
   return 0;
 }
+#endif
 
 } // extern "C"
 

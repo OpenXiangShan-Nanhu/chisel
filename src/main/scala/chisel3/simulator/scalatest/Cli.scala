@@ -93,6 +93,8 @@ object Cli {
                 )
               case options: svsim.verilator.Backend.CompilationSettings =>
                 throw new IllegalArgumentException("Verilator does not support FSDB waveforms.")
+              case _: svsim.iverilog.Backend.CompilationSettings =>
+                throw new IllegalArgumentException("Icarus does not support FSDB waveforms.")
             }
         )
     )
@@ -139,6 +141,7 @@ object Cli {
                     case alreadySet => alreadySet
                   }
                 )
+              case options: svsim.iverilog.Backend.CompilationSettings => options
             }
         )
     )
@@ -179,6 +182,8 @@ object Cli {
                 )
               case options: svsim.verilator.Backend.CompilationSettings =>
                 throw new IllegalArgumentException("Verilator does not support VPD waveforms.")
+              case _: svsim.iverilog.Backend.CompilationSettings =>
+                throw new IllegalArgumentException("Icarus does not support VPD waveforms.")
             }
         )
     )
@@ -280,6 +285,7 @@ object Cli {
 
     /** A mapping of simulator names to simulators. */
     protected def cliSimulatorMap: Map[String, HasSimulator] = Map(
+      "iverilog" -> HasSimulator.simulators.iverilog(),
       "verilator" -> HasSimulator.simulators.verilator(),
       "vcs" -> HasSimulator.simulators.vcs()
     )
@@ -336,7 +342,7 @@ object Cli {
         updateFirtoolOptions = (_, a) => a,
         updateCommonSettings = (simulator, a) =>
           simulator match {
-            case "verilator" => disableTemporalLayers(a)
+            case "verilator" | "iverilog" => disableTemporalLayers(a)
             case _           => a
           },
         updateBackendSettings = (_, a) => a,
