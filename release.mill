@@ -39,6 +39,15 @@ trait Unipublish extends ChiselCrossModule with ChiselPublishModule with Mima {
   // This is published as chisel
   override def artifactName = "chisel"
 
+  /** Publish the library and sources for xmake jar, without building Scaladoc or the plugin. */
+  def publishJar() = Task.Command {
+    val dest = BuildCtx.workspaceRoot / "build" / "maven"
+    new mill.javalib.publish.LocalM2Publisher(dest).publish(
+      pom().path, artifactMetadata(), defaultPublishInfos(sources = true, docs = false)()
+    )
+    ()
+  }
+
   override def mimaPreviousVersions = Task.Input {
     os.read.lines(BuildCtx.workspaceRoot / "etc" / "previous-versions.txt")
   }
